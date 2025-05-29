@@ -1,0 +1,20 @@
+# Môi trường ảo Python
+venv/
+my_real_estate_backend/venv/
+
+# File chứa biến môi trường (tuyệt đối không đưa lên GitHub)
+.env
+my_real_estate_backend/.env
+
+# Các file Python cache
+__pycache__/
+my_real_estate_backend/__pycache__/
+*.py[cod] # Dành cho .pyc, .pyo, .pyd
+
+# Các file hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Các file cấu hình của một số IDE
+.vscode/
+.idea/

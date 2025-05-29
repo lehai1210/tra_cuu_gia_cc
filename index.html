@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tra cứu giá chung cư</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0;
+            background-color: #f4f7f6; 
+            color: #333; 
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; 
+            min-height: 100vh;
+            padding-top: 30px; 
+            box-sizing: border-box;
+        }
+        .container { 
+            max-width: 700px; 
+            width: 100%;
+            margin: 0 auto; 
+            padding: 25px; 
+            background-color: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        h1 { 
+            color: #0056b3; 
+            text-align: center; 
+            margin-bottom: 25px;
+        }
+        label { 
+            display: block; 
+            margin-top: 15px; 
+            margin-bottom: 5px; 
+            font-weight: bold; 
+        }
+        /* Styling cho autocomplete */
+        .autocomplete-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        input[type="text"].autocomplete-input { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box; 
+            font-size: 1rem;
+        }
+        .suggestions-list {
+            position: absolute;
+            border: 1px solid #ccc;
+            border-top: none;
+            z-index: 99;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            max-height: 200px;
+            overflow-y: auto;
+            border-radius: 0 0 4px 4px;
+        }
+        .suggestions-list div {
+            padding: 10px;
+            cursor: pointer;
+        }
+        .suggestions-list div:hover {
+            background-color: #f0f0f0;
+        }
+        .suggestions-list .suggestion-item.active { /* Để làm nổi bật mục đang được chọn bằng phím mũi tên */
+            background-color: #e0e0e0;
+        }
+
+        button { 
+            display: block; 
+            width: 100%; 
+            padding: 12px 20px; 
+            background-color: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            margin-top: 20px;
+        }
+        button:hover { 
+            background-color: #0056b3; 
+        }
+        .results { 
+            margin-top: 30px; 
+            padding-top: 20px; 
+            border-top: 1px solid #eee; 
+        }
+        .results h3 { 
+            margin-top: 0; 
+            color: #0056b3; 
+            margin-bottom: 15px;
+        }
+        .results p { 
+            line-height: 1.7; 
+            margin-bottom: 8px;
+        }
+        .error { 
+            color: red; 
+            margin-top: 15px; 
+            text-align: center; 
+            font-weight: bold;
+        }
+        hr.separator { 
+            border: none; 
+            border-top: 1px solid #007bff; 
+            margin: 25px 0; 
+        }
+        .loading-message {
+            text-align: center;
+            padding: 10px;
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tra cứu giá chung cư</h1>
+        
+        <div>
+            <label for="region_input">Tỉnh/Thành phố:</label>
+            <div class="autocomplete-container">
+                <input type="text" id="region_input" class="autocomplete-input" placeholder="Chọn hoặc nhập Tỉnh/Thành...">
+                <div id="region_suggestions" class="suggestions-list" style="display:none;"></div>
+            </div>
+        </div>
+        
+        <div>
+            <label for="project_input">Dự án:</label>
+            <div class="autocomplete-container">
+                <input type="text" id="project_input" class="autocomplete-input" placeholder="Chọn hoặc nhập Dự án..." disabled>
+                <div id="project_suggestions" class="suggestions-list" style="display:none;"></div>
+            </div>
+        </div>
+        
+        <div>
+            <label for="property_number_input">Mã căn hộ (Tùy chọn):</label>
+            <div class="autocomplete-container">
+                <input type="text" id="property_number_input" class="autocomplete-input" placeholder="Chọn hoặc nhập Mã căn..." disabled>
+                <div id="property_number_suggestions" class="suggestions-list" style="display:none;"></div>
+            </div>
+        </div>
+        
+        <button onclick="lookupPrice()">Tra Cứu</button>
+
+        <div id="loading-message" class="loading-message" style="display:none;">Đang tải dữ liệu...</div>
+        
+        <div id="results" class="results" style="display:none;">
+            <h3>Kết quả Tra Cứu</h3>
+            <p><strong>Đơn giá ước tính:</strong> <span id="estimated_unit_price">N/A</span> VND/m²</p>
+            <p><strong>Giá căn hộ ước tính:</strong> <span id="estimated_apartment_price">N/A</span> VND</p>
+            <hr class="separator"> 
+            <h4>Thông tin căn hộ:</h4>
+            <p id="property_description">N/A</p>
+            <p><strong>- Diện tích:</strong> <span id="carpet_area">N/A</span> m²</p>
+            <p><strong>- Số phòng ngủ:</strong> <span id="bedroom_count">N/A</span></p>
+            <p><strong>- Số WC:</strong> <span id="toilet_count">N/A</span></p>
+            <p><strong>- View căn hộ:</strong> <span id="property_view">N/A</span></p>
+            <p><strong>- Hướng cửa chính:</strong> <span id="door_direction">N/A</span></p>
+        </div>
+        <div id="error-message" class="error" style="display:none;"></div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://127.0.0.1:8000'; 
+
+        // DOM Elements
+        const regionInput = document.getElementById('region_input');
+        const regionSuggestions = document.getElementById('region_suggestions');
+        const projectInput = document.getElementById('project_input');
+        const projectSuggestions = document.getElementById('project_suggestions');
+        const propertyNumberInput = document.getElementById('property_number_input');
+        const propertyNumberSuggestions = document.getElementById('property_number_suggestions');
+        
+        const resultsDiv = document.getElementById('results');
+        const errorDiv = document.getElementById('error-message');
+        const loadingDiv = document.getElementById('loading-message');
+
+        // Data storage
+        let allRegions = [];
+        let allProjects = [];
+        let allPropertyNumbers = [];
+
+        // Selected values (IDs or codes)
+        let selectedRegionId = null;
+        let selectedProjectId = null;
+        let selectedPropertyCode = null; // This will be the value for property_number_input
+
+        function showLoading(isLoading) {
+            loadingDiv.style.display = isLoading ? 'block' : 'none';
+        }
+
+        function renderSuggestions(inputElement, suggestionsContainer, suggestionsData, textField, valueField, onSelectCallback) {
+            suggestionsContainer.innerHTML = ''; // Clear old suggestions
+            if (!suggestionsData || suggestionsData.length === 0) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
+
+            const inputValue = inputElement.value.toLowerCase();
+            const filteredSuggestions = suggestionsData.filter(item => 
+                item[textField].toLowerCase().includes(inputValue)
+            );
+
+            if (filteredSuggestions.length === 0 && inputValue.length > 0) { // Chỉ hiển thị "không tìm thấy" nếu người dùng đã gõ gì đó
+                 const noResultDiv = document.createElement('div');
+                 noResultDiv.textContent = 'Không tìm thấy kết quả';
+                 noResultDiv.classList.add('suggestion-item-none'); // Thêm class để style nếu muốn
+                 suggestionsContainer.appendChild(noResultDiv);
+            } else {
+                filteredSuggestions.forEach(item => {
+                    const div = document.createElement('div');
+                    div.textContent = item[textField];
+                    div.classList.add('suggestion-item');
+                    div.addEventListener('click', () => {
+                        inputElement.value = item[textField]; // Hiển thị tên
+                        suggestionsContainer.style.display = 'none';
+                        if (onSelectCallback) {
+                            onSelectCallback(item[valueField], item[textField]); // Truyền cả ID/value và text
+                        }
+                    });
+                    suggestionsContainer.appendChild(div);
+                });
+            }
+            suggestionsContainer.style.display = filteredSuggestions.length > 0 || (inputValue.length > 0 && filteredSuggestions.length === 0) ? 'block' : 'none';
+        }
+        
+        // --- Region Autocomplete ---
+        regionInput.addEventListener('input', () => {
+            renderSuggestions(regionInput, regionSuggestions, allRegions, 'name', 'id', (id, name) => {
+                selectedRegionId = id;
+                // Reset project and property number when region changes
+                projectInput.value = '';
+                selectedProjectId = null;
+                projectSuggestions.style.display = 'none';
+                projectInput.disabled = true;
+                
+                propertyNumberInput.value = '';
+                selectedPropertyCode = null;
+                propertyNumberSuggestions.style.display = 'none';
+                propertyNumberInput.disabled = true;
+
+                loadProjects(); // Tải dự án cho vùng mới chọn
+            });
+        });
+        regionInput.addEventListener('focus', async () => {
+            if (allRegions.length === 0) await loadInitialRegions(); // Tải nếu chưa có
+            renderSuggestions(regionInput, regionSuggestions, allRegions, 'name', 'id', (id, name) => {
+                selectedRegionId = id;
+                projectInput.value = ''; selectedProjectId = null; projectSuggestions.style.display = 'none'; projectInput.disabled = true;
+                propertyNumberInput.value = ''; selectedPropertyCode = null; propertyNumberSuggestions.style.display = 'none'; propertyNumberInput.disabled = true;
+                loadProjects();
+            });
+        });
+
+        // --- Project Autocomplete ---
+        projectInput.addEventListener('input', () => {
+            renderSuggestions(projectInput, projectSuggestions, allProjects, 'name', 'id', (id, name) => {
+                selectedProjectId = id;
+                 // Reset property number when project changes
+                propertyNumberInput.value = '';
+                selectedPropertyCode = null;
+                propertyNumberSuggestions.style.display = 'none';
+                propertyNumberInput.disabled = true;
+                loadPropertyNumbers(); // Tải mã căn cho dự án mới chọn
+            });
+        });
+        projectInput.addEventListener('focus', () => {
+            if (selectedRegionId && allProjects.length === 0) { // Chỉ tải lại nếu chưa có hoặc vùng đã thay đổi
+                 loadProjects(); // loadProjects sẽ fetch và render
+            } else {
+                 renderSuggestions(projectInput, projectSuggestions, allProjects, 'name', 'id', (id, name) => {
+                    selectedProjectId = id;
+                    propertyNumberInput.value = ''; selectedPropertyCode = null; propertyNumberSuggestions.style.display = 'none'; propertyNumberInput.disabled = true;
+                    loadPropertyNumbers();
+                });
+            }
+        });
+
+        // --- Property Number Autocomplete ---
+        propertyNumberInput.addEventListener('input', () => {
+            renderSuggestions(propertyNumberInput, propertyNumberSuggestions, allPropertyNumbers, 'property_number', 'property_code', (code, number) => {
+                selectedPropertyCode = code; // Lưu property_code (giá trị thật để gửi đi)
+            });
+        });
+        propertyNumberInput.addEventListener('focus', () => {
+             if (selectedProjectId && allPropertyNumbers.length === 0) {
+                 loadPropertyNumbers();
+             } else {
+                renderSuggestions(propertyNumberInput, propertyNumberSuggestions, allPropertyNumbers, 'property_number', 'property_code', (code, number) => {
+                    selectedPropertyCode = code;
+                });
+             }
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!regionInput.contains(event.target) && !regionSuggestions.contains(event.target)) {
+                regionSuggestions.style.display = 'none';
+            }
+            if (!projectInput.contains(event.target) && !projectSuggestions.contains(event.target)) {
+                projectSuggestions.style.display = 'none';
+            }
+            if (!propertyNumberInput.contains(event.target) && !propertyNumberSuggestions.contains(event.target)) {
+                propertyNumberSuggestions.style.display = 'none';
+            }
+        });
+
+
+        async function loadInitialRegions() {
+            showLoading(true);
+            errorDiv.style.display = 'none'; 
+            try {
+                const response = await fetch(`${BACKEND_URL}/regions-list`);
+                if (!response.ok) throw new Error(`Lỗi tải Tỉnh/Thành: ${response.status} ${response.statusText}`);
+                allRegions = await response.json();
+                // Không render ngay, chỉ tải dữ liệu. Render sẽ xảy ra khi focus/input.
+                // Hoặc có thể render ngay nếu muốn hiển thị danh sách khi focus lần đầu
+                // renderSuggestions(regionInput, regionSuggestions, allRegions, 'name', 'id', (id, name) => {
+                //     selectedRegionId = id; loadProjects();
+                // });
+            } catch (error) {
+                console.error("Error in loadInitialRegions:", error); 
+                errorDiv.textContent = `Không thể tải danh sách Tỉnh/Thành. ${error.message}`;
+                errorDiv.style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadProjects() {
+            projectInput.value = ''; selectedProjectId = null; allProjects = []; // Reset
+            propertyNumberInput.value = ''; selectedPropertyCode = null; allPropertyNumbers = []; propertyNumberInput.disabled = true; propertyNumberSuggestions.style.display = 'none';
+            resultsDiv.style.display = 'none'; 
+            errorDiv.style.display = 'none'; 
+
+            if (!selectedRegionId) {
+                projectInput.disabled = true;
+                return;
+            }
+            projectInput.disabled = false;
+
+            showLoading(true);
+            try {
+                const response = await fetch(`${BACKEND_URL}/projects-list?region_id=${selectedRegionId}`);
+                if (!response.ok) throw new Error(`Lỗi tải Dự án: ${response.status} ${response.statusText}`);
+                allProjects = await response.json();
+                renderSuggestions(projectInput, projectSuggestions, allProjects, 'name', 'id', (id, name) => { // Render ngay khi có dữ liệu
+                    selectedProjectId = id;
+                    loadPropertyNumbers();
+                });
+            } catch (error) {
+                console.error("Error in loadProjects:", error);
+                errorDiv.textContent = `Không thể tải danh sách Dự án. ${error.message}`;
+                errorDiv.style.display = 'block';
+                allProjects = []; // Đảm bảo là mảng rỗng nếu lỗi
+            } finally {
+                showLoading(false);
+                 // Nếu projectInput đang focus, hiển thị suggestions
+                if (document.activeElement === projectInput) {
+                    renderSuggestions(projectInput, projectSuggestions, allProjects, 'name', 'id', (id, name) => {
+                         selectedProjectId = id; loadPropertyNumbers();
+                    });
+                }
+            }
+        }
+
+        async function loadPropertyNumbers() {
+            propertyNumberInput.value = ''; selectedPropertyCode = null; allPropertyNumbers = []; // Reset
+            resultsDiv.style.display = 'none'; 
+            errorDiv.style.display = 'none'; 
+
+            if (!selectedProjectId || !selectedRegionId) { // Cần cả project ID và region ID
+                propertyNumberInput.disabled = true;
+                return;
+            }
+            propertyNumberInput.disabled = false;
+
+            showLoading(true);
+            try {
+                const response = await fetch(`${BACKEND_URL}/property-numbers-list?project_id=${selectedProjectId}&region_id=${selectedRegionId}`);
+                if (!response.ok) throw new Error(`Lỗi tải Mã căn hộ: ${response.status} ${response.statusText}`);
+                allPropertyNumbers = await response.json();
+                renderSuggestions(propertyNumberInput, propertyNumberSuggestions, allPropertyNumbers, 'property_number', 'property_code', (code, number) => {
+                    selectedPropertyCode = code;
+                });
+            } catch (error) {
+                console.error("Error in loadPropertyNumbers:", error);
+                errorDiv.textContent = `Không thể tải danh sách Mã căn hộ. ${error.message}`;
+                errorDiv.style.display = 'block';
+                allPropertyNumbers = [];
+            } finally {
+                showLoading(false);
+                if (document.activeElement === propertyNumberInput) {
+                     renderSuggestions(propertyNumberInput, propertyNumberSuggestions, allPropertyNumbers, 'property_number', 'property_code', (code, number) => {
+                         selectedPropertyCode = code;
+                    });
+                }
+            }
+        }
+
+        async function lookupPrice() {
+            const selectedRegionNameFromInput = regionInput.value; // Lấy tên từ input
+            const selectedProjectNameFromInput = projectInput.value; // Lấy tên từ input
+            // selectedPropertyCode đã được cập nhật khi chọn từ suggestions list
+
+            resultsDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+
+            // Kiểm tra xem người dùng đã chọn từ gợi ý hay chỉ gõ tên
+            // Để đơn giản, MVP này sẽ dựa vào tên trong input. 
+            // Một phiên bản hoàn thiện hơn sẽ kiểm tra selectedRegionId và selectedProjectId.
+            if (!selectedRegionNameFromInput || !selectedProjectNameFromInput) {
+                errorDiv.textContent = 'Vui lòng chọn Tỉnh/Thành phố và Dự án từ danh sách gợi ý.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            showLoading(true);
+            let lookupUrl = `${BACKEND_URL}/lookup?region_name=${encodeURIComponent(selectedRegionNameFromInput)}&project_name=${encodeURIComponent(selectedProjectNameFromInput)}`;
+            
+            if (selectedPropertyCode) { // selectedPropertyCode là property_code (giá trị value)
+                lookupUrl += `&property_number=${encodeURIComponent(selectedPropertyCode)}`;
+            }
+
+            try {
+                const response = await fetch(lookupUrl);
+                const data = await response.json();
+
+                if (!response.ok) { 
+                    throw new Error(data.detail || `Lỗi từ server: ${response.status} ${response.statusText}`);
+                }
+                
+                if (data.property_details) {
+                    document.getElementById('estimated_unit_price').textContent = data.estimated_unit_price ? data.estimated_unit_price.toLocaleString('vi-VN') : 'Chưa có thông tin';
+                    document.getElementById('estimated_apartment_price').textContent = data.estimated_apartment_price ? data.estimated_apartment_price.toLocaleString('vi-VN') : 'Chưa có thông tin';
+                    
+                    document.getElementById('property_description').textContent = data.property_details.description || 'N/A';
+                    document.getElementById('carpet_area').textContent = data.property_details.carpet_area || 'N/A';
+                    document.getElementById('bedroom_count').textContent = data.property_details.bedroom_count || 'N/A';
+                    document.getElementById('toilet_count').textContent = data.property_details.toilet_count || 'N/A';
+                    document.getElementById('property_view').textContent = data.property_details.property_view || 'N/A';
+                    document.getElementById('door_direction').textContent = data.property_details.door_direction || 'N/A';
+                    resultsDiv.style.display = 'block';
+                } else {
+                     throw new Error("API không trả về thông tin chi tiết căn hộ mong đợi.");
+                }
+
+            } catch (error) {
+                console.error('Lỗi khi tra cứu giá:', error);
+                errorDiv.textContent = `Lỗi: ${error.message}`;
+                errorDiv.style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Tải danh sách Tỉnh/Thành phố ban đầu khi trang được mở
+        window.onload = function() {
+            // Không vô hiệu hóa input ban đầu, để người dùng có thể focus và tải
+            // projectInput.disabled = true; 
+            // propertyNumberInput.disabled = true; 
+            loadInitialRegions(); // Chỉ tải dữ liệu, không render ngay
+        };
+    </script>
+</body>
+</html>
